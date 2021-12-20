@@ -7,7 +7,7 @@ ADD . /home/s3
 RUN cd /home/s3 && go build  -o /root/s3  cmd/s3/main.go
 
 
-FROM alpine:latest as prod
+FROM alpine:3.14 as prod
 
 
 WORKDIR /root/
