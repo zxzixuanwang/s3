@@ -119,6 +119,12 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 			Value:  "",
 			EnvVar: "AWS_ENDPOINT",
 		},
+		cli.StringFlag{
+			Name:   "directory",
+			Usage:  "download directory",
+			Value:  "",
+			EnvVar: "",
+		},
 	}
 
 	aclFlag := cli.StringFlag{
@@ -171,9 +177,10 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					exitCode = 1
 					return
 				}
+				directory := c.Parent().String("directory")
 				conn := getConnection(c)
 				mys3 := getSession(c)
-				err := getKeys(conn, c.Args(), mys3)
+				err := getKeys(conn, c.Args(), mys3, directory)
 				checkErr(err)
 			},
 		},

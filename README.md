@@ -54,6 +54,12 @@ Download all the contents (recursively) under the path to local:
 
     s3 get s3://bucket/path
 
+
+Download all the contents (recursively) under the path to target directory:
+
+    s3 get --directory path  s3://bucket/path
+
+
 Cat (stream to stdout) all the contents under the path:
 
     s3 cat s3://bucket/path | grep needle
