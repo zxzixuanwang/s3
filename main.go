@@ -266,6 +266,33 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 			},
 		},
 		{
+			Name:      "put-part",
+			Usage:     "Multipart Upload files",
+			ArgsUsage: "source [source ...] dest",
+			Flags:     []cli.Flag{aclFlag, publicFlag},
+			Action: func(c *cli.Context) {
+				if len(c.Args()) < 2 {
+					cli.ShowCommandHelp(c, "put-part")
+					exitCode = 1
+					return
+				}
+				if public {
+					acl = "public-read"
+				}
+				if !validACL() {
+					exitCode = 1
+					return
+				}
+				conn := getConnection(c)
+				args := c.Args()
+				sources := args[:len(args)-1]
+				destination := args[len(args)-1]
+				mys3 := getSession(c)
+				err := multiPartPutKeys(conn, sources, destination, mys3)
+				checkErr(err)
+			},
+		},
+		{
 			Name:      "rb",
 			Usage:     "Remove bucket(s)",
 			ArgsUsage: "bucket ...",

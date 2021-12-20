@@ -50,12 +50,10 @@ func listBuckets(conn s3iface.S3API) error {
 }
 
 func iterateKeys(conn s3iface.S3API, urls []string, callback func(file File) error, mys3Conn mys3.Mys3) error {
-	fmt.Println(">>>>>>>itera ", mys3Conn)
 	found := false
 	for _, url := range urls {
 		fs := getFilesystem(conn, url, mys3Conn)
 		ch := fs.Files()
-		fmt.Println(">>>>>>>>>ch", mys3Conn)
 		for file := range ch {
 
 			found = true
@@ -128,10 +126,8 @@ func listKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
 }
 
 func getKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
-	fmt.Println(">>>>>>>>>>urls", urls)
 	for _, url := range urls {
 		if !isS3Url(url) {
-			fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>")
 			return errors.New("s3:// url required")
 		}
 	}
@@ -397,6 +393,43 @@ func putKeys(conn s3iface.S3API, sources []string, destination string, mys3Conn 
 		}
 		err = dfs.Create(file)
 		if err != nil {
+
+			return err
+		}
+
+		added += 1
+		return nil
+	}, mys3Conn)
+	if err != nil {
+		return err
+	}
+	end := time.Now()
+	took := end.Sub(start)
+	summary(added, 0, 0, 0, took)
+
+	return nil
+}
+
+func multiPartPutKeys(conn s3iface.S3API, sources []string, destination string, mys3Conn mys3.Mys3) error {
+	start := time.Now()
+	if !isS3Url(destination) {
+		return errors.New("s3:// url required for destination")
+	}
+	dfs := getFilesystem(conn, destination, mys3Conn)
+	var added int
+	err := iterateKeysParallel(conn, sources, func(file File) error {
+		reader, err := file.Reader()
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		buffer := make([]byte, file.Size())
+		reader.Read(buffer)
+		if !quiet {
+			fmt.Fprintf(out, "A %s\n", file)
+		}
+		err = dfs.CreateMultiPart(file, buffer)
+		if err != nil {
 			return err
 		}
 		added += 1
@@ -419,10 +452,6 @@ func isS3Url(url string) bool {
 func getFilesystem(conn s3iface.S3API, url string, mys3Conn mys3.Mys3) Filesystem {
 	if isS3Url(url) {
 		bucket, prefix := extractBucketPath(url)
-		fmt.Println(">>>>>>>>>>>>>>bucket", bucket)
-		fmt.Println(">>>>>>>>>>>>url", url)
-
-		fmt.Println(">>>>>>>>>>>>prefix", prefix)
 		return &S3Filesystem{conn: conn, bucket: bucket, path: prefix, mys3: mys3Conn}
 	} else {
 		return &LocalFilesystem{path: url}

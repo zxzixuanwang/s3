@@ -17,4 +17,5 @@ type Filesystem interface {
 	Create(src File) error
 	Delete(path string) error
 	Error() error
+	CreateMultiPart(src File, buffer []byte) error
 }

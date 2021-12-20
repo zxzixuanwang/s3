@@ -43,6 +43,9 @@ func scanFiles(ch chan<- File, fullpath string, relpath string) error {
 	}
 	return nil
 }
+func (lfs *LocalFilesystem) CreateMultiPart(src File, buffer []byte) error {
+	return nil
+}
 
 func (lfs *LocalFilesystem) Files() <-chan File {
 	ch := make(chan File, 1000)

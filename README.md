@@ -28,10 +28,10 @@ And you're ready to go:
 
     $ ./s3 -h
 
-Alternatively you can instead build from source, you'll need go 1.2 installed,
+Alternatively you can instead build from source, you'll need go 1.16 installed,
 then:
 
-    go get github.com/barnybug/s3
+    go get github.com/zxzixuanwang/s3
 
 # Setup
 
@@ -82,5 +82,14 @@ Delete a bucket:
 
     s3 rb bucket
 
-Use endpoint:
+Put file:
+
+    s3 file s3://bucketname/xxx
+
+
+Multpart put file:
+
+    s3  put-part file s3://bucketname/xxx
+Use endpoint:   
+    
     s3 --endpoint address s3://xxx
