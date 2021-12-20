@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/barnybug/s3/pkg/mys3"
 	"github.com/urfave/cli"
 )
 
@@ -55,14 +57,34 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 	getConnection := func(c *cli.Context) s3iface.S3API {
 		if conn == nil {
 			region := c.Parent().String("region")
+			endpoint := c.Parent().String("endpoint")
 			config := aws.Config{
-				Region: aws.String(region),
+				Region:   aws.String(region),
+				Endpoint: &endpoint,
 			}
-			conn = s3.New(session.New(), &config)
+			sess, _ := session.NewSession(&config)
+			conn = s3.New(sess)
 		}
 		return conn
 	}
 
+	getSession := func(c *cli.Context) mys3.Mys3 {
+
+		region := c.Parent().String("region")
+		endpoint := c.Parent().String("endpoint")
+		config := aws.Config{
+			Region:   aws.String(region),
+			Endpoint: &endpoint,
+		}
+		endPointSplit := strings.Split(*config.Endpoint, "://")
+		able := false
+		if endPointSplit[0] == "http" {
+			able = true
+		}
+		mys3Conn := mys3.New(endpoint, region, able)
+
+		return mys3Conn
+	}
 	commonFlags := []cli.Flag{
 		cli.IntFlag{
 			Name:        "p",
@@ -90,6 +112,12 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 			Usage:  "set region, otherwise environment variable AWS_REGION is checked, finally defaulting to us-east-1",
 			Value:  "us-east-1",
 			EnvVar: "AWS_REGION",
+		},
+		cli.StringFlag{
+			Name:   "endpoint",
+			Usage:  "set s3 endpoint",
+			Value:  "",
+			EnvVar: "AWS_ENDPOINT",
 		},
 	}
 
@@ -128,7 +156,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := catKeys(conn, c.Args())
+				mys3 := getSession(c)
+				err := catKeys(conn, c.Args(), mys3)
 				checkErr(err)
 			},
 		},
@@ -143,7 +172,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := getKeys(conn, c.Args())
+				mys3 := getSession(c)
+				err := getKeys(conn, c.Args(), mys3)
 				checkErr(err)
 			},
 		},
@@ -170,7 +200,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 				conn := getConnection(c)
 				find := c.Args().First()
 				urls := c.Args().Tail()
-				err := grepKeys(conn, find, urls, c.Bool("no-keys-prefix"), c.Bool("keys-with-matches"))
+				mys3 := getSession(c)
+				err := grepKeys(conn, find, urls, c.Bool("no-keys-prefix"), c.Bool("keys-with-matches"), mys3)
 				checkErr(err)
 			},
 		},
@@ -185,7 +216,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					err = listBuckets(conn)
 				} else {
 					conn := getConnection(c)
-					err = listKeys(conn, c.Args())
+					mys3 := getSession(c)
+					err = listKeys(conn, c.Args(), mys3)
 				}
 				checkErr(err)
 			},
@@ -201,7 +233,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := putBuckets(conn, c.Args())
+				mys3 := getSession(c)
+				err := putBuckets(conn, c.Args(), mys3)
 				checkErr(err)
 			},
 		},
@@ -227,7 +260,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 				args := c.Args()
 				sources := args[:len(args)-1]
 				destination := args[len(args)-1]
-				err := putKeys(conn, sources, destination)
+				mys3 := getSession(c)
+				err := putKeys(conn, sources, destination, mys3)
 				checkErr(err)
 			},
 		},
@@ -242,7 +276,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := rmBuckets(conn, c.Args())
+				mys3 := getSession(c)
+				err := rmBuckets(conn, c.Args(), mys3)
 				checkErr(err)
 			},
 		},
@@ -257,7 +292,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := rmKeys(conn, c.Args())
+				mys3 := getSession(c)
+				err := rmKeys(conn, c.Args(), mys3)
 				checkErr(err)
 			},
 		},
@@ -280,7 +316,8 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				conn := getConnection(c)
-				err := syncFiles(conn, c.Args()[0], c.Args()[1])
+				mys3 := getSession(c)
+				err := syncFiles(conn, c.Args()[0], c.Args()[1], mys3)
 				checkErr(err)
 			},
 		},

@@ -81,3 +81,6 @@ Create a bucket:
 Delete a bucket:
 
     s3 rb bucket
+
+Use endpoint:
+    s3 --endpoint address s3://xxx

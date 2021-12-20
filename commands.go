@@ -23,14 +23,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/barnybug/s3/pkg/mys3"
 )
 
 var reBucketPath = regexp.MustCompile("^(?:s3://)?([^/]+)/?(.*)$")
 var out io.Writer = os.Stdout
-var err io.Writer = os.Stderr
 
 var (
-	ErrNotFound = errors.New("No files found")
+	ErrNotFound = errors.New("no files found")
 )
 
 func extractBucketPath(url string) (string, string) {
@@ -49,12 +49,15 @@ func listBuckets(conn s3iface.S3API) error {
 	return nil
 }
 
-func iterateKeys(conn s3iface.S3API, urls []string, callback func(file File) error) error {
+func iterateKeys(conn s3iface.S3API, urls []string, callback func(file File) error, mys3Conn mys3.Mys3) error {
+	fmt.Println(">>>>>>>itera ", mys3Conn)
 	found := false
 	for _, url := range urls {
-		fs := getFilesystem(conn, url)
+		fs := getFilesystem(conn, url, mys3Conn)
 		ch := fs.Files()
+		fmt.Println(">>>>>>>>>ch", mys3Conn)
 		for file := range ch {
+
 			found = true
 			err := callback(file)
 			if err != nil {
@@ -71,7 +74,7 @@ func iterateKeys(conn s3iface.S3API, urls []string, callback func(file File) err
 	return nil
 }
 
-func iterateKeysParallel(conn s3iface.S3API, urls []string, callback func(file File) error) error {
+func iterateKeysParallel(conn s3iface.S3API, urls []string, callback func(file File) error, mys3Conn mys3.Mys3) error {
 	// create pool for processing
 	var err error
 	wg := sync.WaitGroup{}
@@ -93,7 +96,7 @@ func iterateKeysParallel(conn s3iface.S3API, urls []string, callback func(file F
 	e := iterateKeys(conn, urls, func(file File) error {
 		q <- file
 		return nil
-	})
+	}, mys3Conn)
 	if e != nil {
 		return e
 	}
@@ -103,7 +106,7 @@ func iterateKeysParallel(conn s3iface.S3API, urls []string, callback func(file F
 	return err
 }
 
-func listKeys(conn s3iface.S3API, urls []string) error {
+func listKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
 	var count, totalSize int64
 	err := iterateKeys(conn, urls, func(file File) error {
 		if quiet {
@@ -114,7 +117,7 @@ func listKeys(conn s3iface.S3API, urls []string) error {
 		count += 1
 		totalSize += file.Size()
 		return nil
-	})
+	}, mys3Conn)
 	if err != nil && err != ErrNotFound {
 		return err
 	}
@@ -124,9 +127,11 @@ func listKeys(conn s3iface.S3API, urls []string) error {
 	return nil
 }
 
-func getKeys(conn s3iface.S3API, urls []string) error {
+func getKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
+	fmt.Println(">>>>>>>>>>urls", urls)
 	for _, url := range urls {
 		if !isS3Url(url) {
+			fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>")
 			return errors.New("s3:// url required")
 		}
 	}
@@ -160,11 +165,11 @@ func getKeys(conn s3iface.S3API, urls []string) error {
 			fmt.Fprintf(out, "%s -> %s (%d bytes)\n", file, fpath, nbytes)
 		}
 		return nil
-	})
+	}, mys3Conn)
 	return err
 }
 
-func catKeys(conn s3iface.S3API, urls []string) error {
+func catKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
 	return iterateKeysParallel(conn, urls, func(file File) error {
 		reader, err := file.Reader()
 		if err != nil {
@@ -184,7 +189,7 @@ func catKeys(conn s3iface.S3API, urls []string) error {
 			return err
 		}
 		return nil
-	})
+	}, mys3Conn)
 }
 
 func outputMatches(buf []byte, needle []byte, prefix string) {
@@ -218,7 +223,7 @@ func outputMatches(buf []byte, needle []byte, prefix string) {
 	}
 }
 
-func grepKeys(conn s3iface.S3API, find string, urls []string, noKeysPrefix bool, keysWithMatches bool) error {
+func grepKeys(conn s3iface.S3API, find string, urls []string, noKeysPrefix bool, keysWithMatches bool, mys3Conn mys3.Mys3) error {
 	needle := []byte(find)
 
 	return iterateKeysParallel(conn, urls, func(file File) error {
@@ -264,10 +269,10 @@ func grepKeys(conn s3iface.S3API, find string, urls []string, noKeysPrefix bool,
 			return err
 		}
 		return nil
-	})
+	}, mys3Conn)
 }
 
-func deleteBatch(conn s3iface.S3API, bucket string, batch []*s3.ObjectIdentifier) error {
+func deleteBatch(conn s3iface.S3API, bucket string, batch []*s3.ObjectIdentifier, mys3Conn mys3.Mys3) error {
 	if !dryRun {
 		deleteRequest := s3.Delete{
 			Objects: batch,
@@ -282,10 +287,10 @@ func deleteBatch(conn s3iface.S3API, bucket string, batch []*s3.ObjectIdentifier
 	return nil
 }
 
-func rmKeys(conn s3iface.S3API, urls []string) error {
+func rmKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
 	for _, url := range urls {
 		if !isS3Url(url) {
-			return errors.New("Cowardly refusing to remove local files. Use rm.")
+			return errors.New("cowardly refusing to remove local files ,use rm")
 		}
 	}
 	batch := make([]*s3.ObjectIdentifier, 0, 1000)
@@ -301,14 +306,14 @@ func rmKeys(conn s3iface.S3API, urls []string) error {
 		case *S3File:
 			// optimize as a batch delete
 			if t.bucket != bucket && len(batch) > 0 {
-				deleteBatch(conn, bucket, batch)
+				deleteBatch(conn, bucket, batch, mys3Conn)
 				batch = batch[:0]
 			}
 			bucket = t.bucket
 			obj := s3.ObjectIdentifier{Key: t.object.Key}
 			batch = append(batch, &obj)
 			if len(batch) == 1000 {
-				deleteBatch(conn, bucket, batch)
+				deleteBatch(conn, bucket, batch, mys3Conn)
 				batch = batch[:0]
 			}
 
@@ -318,14 +323,14 @@ func rmKeys(conn s3iface.S3API, urls []string) error {
 			}
 		}
 		return nil
-	})
+	}, mys3Conn)
 	if err != nil {
 		return err
 	}
 
 	// final batch
 	if len(batch) > 0 {
-		deleteBatch(conn, bucket, batch)
+		deleteBatch(conn, bucket, batch, mys3Conn)
 	}
 	end := time.Now()
 	took := end.Sub(start)
@@ -333,7 +338,7 @@ func rmKeys(conn s3iface.S3API, urls []string) error {
 	return nil
 }
 
-func rmBuckets(conn s3iface.S3API, buckets []string) error {
+func rmBuckets(conn s3iface.S3API, buckets []string, mys3Conn mys3.Mys3) error {
 	for _, name := range buckets {
 		bucket, _ := extractBucketPath(name)
 		input := s3.DeleteBucketInput{Bucket: aws.String(bucket)}
@@ -359,7 +364,7 @@ took: %s (%.1f ops/s)
 `, added, deleted, updated, unchanged, took, rate)
 }
 
-func putBuckets(conn s3iface.S3API, buckets []string) error {
+func putBuckets(conn s3iface.S3API, buckets []string, mys3Conn mys3.Mys3) error {
 	for _, bucket := range buckets {
 		input := s3.CreateBucketInput{
 			ACL:    aws.String(acl),
@@ -373,12 +378,12 @@ func putBuckets(conn s3iface.S3API, buckets []string) error {
 	return nil
 }
 
-func putKeys(conn s3iface.S3API, sources []string, destination string) error {
+func putKeys(conn s3iface.S3API, sources []string, destination string, mys3Conn mys3.Mys3) error {
 	start := time.Now()
 	if !isS3Url(destination) {
 		return errors.New("s3:// url required for destination")
 	}
-	dfs := getFilesystem(conn, destination)
+	dfs := getFilesystem(conn, destination, mys3Conn)
 	var added int
 	err := iterateKeysParallel(conn, sources, func(file File) error {
 		reader, err := file.Reader()
@@ -396,7 +401,7 @@ func putKeys(conn s3iface.S3API, sources []string, destination string) error {
 		}
 		added += 1
 		return nil
-	})
+	}, mys3Conn)
 	if err != nil {
 		return err
 	}
@@ -411,10 +416,14 @@ func isS3Url(url string) bool {
 	return strings.HasPrefix(url, "s3:")
 }
 
-func getFilesystem(conn s3iface.S3API, url string) Filesystem {
+func getFilesystem(conn s3iface.S3API, url string, mys3Conn mys3.Mys3) Filesystem {
 	if isS3Url(url) {
 		bucket, prefix := extractBucketPath(url)
-		return &S3Filesystem{conn: conn, bucket: bucket, path: prefix}
+		fmt.Println(">>>>>>>>>>>>>>bucket", bucket)
+		fmt.Println(">>>>>>>>>>>>url", url)
+
+		fmt.Println(">>>>>>>>>>>>prefix", prefix)
+		return &S3Filesystem{conn: conn, bucket: bucket, path: prefix, mys3: mys3Conn}
 	} else {
 		return &LocalFilesystem{path: url}
 	}
@@ -468,10 +477,10 @@ func processAction(action Action, fs2 Filesystem) error {
 	return nil
 }
 
-func syncFiles(conn s3iface.S3API, src, dest string) error {
+func syncFiles(conn s3iface.S3API, src, dest string, mys3Conn mys3.Mys3) error {
 	start := time.Now()
-	fs1 := getFilesystem(conn, src)
-	fs2 := getFilesystem(conn, dest)
+	fs1 := getFilesystem(conn, src, mys3Conn)
+	fs2 := getFilesystem(conn, dest, mys3Conn)
 	ch1 := fs1.Files()
 	f1 := <-ch1
 
@@ -519,7 +528,7 @@ func syncFiles(conn s3iface.S3API, src, dest string) error {
 				deleted += 1
 			}
 			f2 = <-ch2
-		} else if f1.Size() != f2.Size() || bytes.Compare(f1.MD5(), f2.MD5()) != 0 {
+		} else if f1.Size() != f2.Size() || !bytes.Equal(f1.MD5(), f2.MD5()) {
 			q <- Action{"update", f1}
 			updated += 1
 			f1 = <-ch1
