@@ -15,8 +15,8 @@ type LocalFilesystem struct {
 	path string
 }
 
-func (self *LocalFilesystem) Error() error {
-	return self.err
+func (lfs *LocalFilesystem) Error() error {
+	return lfs.err
 }
 
 func scanFiles(ch chan<- File, fullpath string, relpath string) error {
@@ -43,45 +43,48 @@ func scanFiles(ch chan<- File, fullpath string, relpath string) error {
 	}
 	return nil
 }
+func (lfs *LocalFilesystem) CreateMultiPart(src File, buffer []byte) error {
+	return nil
+}
 
-func (self *LocalFilesystem) Files() <-chan File {
+func (lfs *LocalFilesystem) Files() <-chan File {
 	ch := make(chan File, 1000)
 
 	// use relative path to file or directory:
 	// path/to/file -> file
 	// parent/path -> path
 	// path/ -> ''
-	ps := strings.Split(self.path, "/")
+	ps := strings.Split(lfs.path, "/")
 	relpath := ps[len(ps)-1]
 	go func() {
 		defer close(ch)
-		fi, err := os.Stat(self.path)
+		fi, err := os.Stat(lfs.path)
 		if os.IsNotExist(err) {
 			return
 		}
 		if err != nil {
-			self.err = err
+			lfs.err = err
 			return
 		}
 		if fi.IsDir() {
-			err := scanFiles(ch, self.path, relpath)
+			err := scanFiles(ch, lfs.path, relpath)
 			if err != nil {
-				self.err = err
+				lfs.err = err
 			}
 		} else {
-			ch <- &LocalFile{fi, self.path, relpath, nil}
+			ch <- &LocalFile{fi, lfs.path, relpath, nil}
 		}
 	}()
 	return ch
 }
 
-func (self *LocalFilesystem) Create(src File) error {
+func (lfs *LocalFilesystem) Create(src File) error {
 	reader, err := src.Reader()
 	if err != nil {
 		return err
 	}
 	defer reader.Close()
-	fullpath := filepath.Join(self.path, src.Relative())
+	fullpath := filepath.Join(lfs.path, src.Relative())
 	if src.IsDirectory() {
 		err = os.MkdirAll(fullpath, 0777)
 	} else {
@@ -101,8 +104,8 @@ func (self *LocalFilesystem) Create(src File) error {
 	return err
 }
 
-func (self *LocalFilesystem) Delete(path string) error {
-	fullpath := filepath.Join(self.path, path)
+func (lfs *LocalFilesystem) Delete(path string) error {
+	fullpath := filepath.Join(lfs.path, path)
 	return os.Remove(fullpath)
 }
 
@@ -113,23 +116,23 @@ type LocalFile struct {
 	md5      []byte
 }
 
-func (self *LocalFile) Relative() string {
-	return self.relpath
+func (lf *LocalFile) Relative() string {
+	return lf.relpath
 }
 
-func (self *LocalFile) Size() int64 {
-	return self.info.Size()
+func (lf *LocalFile) Size() int64 {
+	return lf.info.Size()
 }
 
-func (self *LocalFile) IsDirectory() bool {
+func (lf *LocalFile) IsDirectory() bool {
 	return false
 }
 
-func (self *LocalFile) MD5() []byte {
-	if self.md5 == nil {
+func (lf *LocalFile) MD5() []byte {
+	if lf.md5 == nil {
 		// cache md5
 		h := md5.New()
-		reader, err := os.Open(self.fullpath)
+		reader, err := os.Open(lf.fullpath)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -137,19 +140,19 @@ func (self *LocalFile) MD5() []byte {
 		if err != nil {
 			log.Fatal(err)
 		}
-		self.md5 = h.Sum(nil)
+		lf.md5 = h.Sum(nil)
 	}
-	return self.md5
+	return lf.md5
 }
 
-func (self *LocalFile) Reader() (io.ReadCloser, error) {
-	return os.Open(self.fullpath)
+func (lf *LocalFile) Reader() (io.ReadCloser, error) {
+	return os.Open(lf.fullpath)
 }
 
-func (self *LocalFile) Delete() error {
-	return os.Remove(self.fullpath)
+func (lf *LocalFile) Delete() error {
+	return os.Remove(lf.fullpath)
 }
 
-func (self *LocalFile) String() string {
-	return self.relpath
+func (lf *LocalFile) String() string {
+	return lf.relpath
 }

@@ -28,10 +28,10 @@ And you're ready to go:
 
     $ ./s3 -h
 
-Alternatively you can instead build from source, you'll need go 1.2 installed,
+Alternatively you can instead build from source, you'll need go 1.16 installed,
 then:
 
-    go get github.com/barnybug/s3
+    go get github.com/zxzixuanwang/s3
 
 # Setup
 
@@ -53,6 +53,12 @@ List keys in a bucket under a prefix:
 Download all the contents (recursively) under the path to local:
 
     s3 get s3://bucket/path
+
+
+Download all the contents (recursively) under the path to target directory:
+
+    s3 get --directory path  s3://bucket/path
+
 
 Cat (stream to stdout) all the contents under the path:
 
@@ -81,3 +87,15 @@ Create a bucket:
 Delete a bucket:
 
     s3 rb bucket
+
+Put file:
+
+    s3 file s3://bucketname/xxx
+
+
+Multpart put file:
+
+    s3  put-part file s3://bucketname/xxx
+Use endpoint:   
+    
+    s3 --endpoint address s3://xxx
