@@ -125,6 +125,10 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 			Value:  "",
 			EnvVar: "",
 		},
+		cli.BoolFlag{
+			Name:  "onlyShow",
+			Usage: "only show data when get file",
+		},
 	}
 
 	aclFlag := cli.StringFlag{
@@ -178,9 +182,10 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				directory := c.Parent().String("directory")
+				onlyShow := c.Parent().Bool("onlyShow")
 				conn := getConnection(c)
 				mys3 := getSession(c)
-				err := getKeys(conn, c.Args(), mys3, directory)
+				err := getKeys(conn, c.Args(), mys3, directory, onlyShow)
 				checkErr(err)
 			},
 		},

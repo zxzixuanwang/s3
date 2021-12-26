@@ -69,6 +69,7 @@ func (s3f *S3File) Reader() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("file content:%s\n", output.GoString())
 	return output.Body, err
 }
 

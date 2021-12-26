@@ -125,7 +125,7 @@ func listKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3) error {
 	return nil
 }
 
-func getKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3, directory string) error {
+func getKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3, directory string, onlyShowData bool) error {
 	for _, url := range urls {
 		if !isS3Url(url) {
 			return errors.New("s3:// url required")
@@ -138,7 +138,9 @@ func getKeys(conn s3iface.S3API, urls []string, mys3Conn mys3.Mys3, directory st
 			return err
 		}
 		defer reader.Close()
-
+		if onlyShowData {
+			return nil
+		}
 		// write files under relative path to the source path
 		fpath := file.Relative()
 		if directory != "" {

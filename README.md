@@ -99,3 +99,7 @@ Multpart put file:
 Use endpoint:   
     
     s3 --endpoint address s3://xxx
+
+Only show file data when get key:
+
+    s3 --onlyShow=true get s3://xxx
