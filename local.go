@@ -43,6 +43,7 @@ func scanFiles(ch chan<- File, fullpath string, relpath string) error {
 	}
 	return nil
 }
+
 func (lfs *LocalFilesystem) CreateMultiPart(src File, buffer []byte) error {
 	return nil
 }
@@ -126,6 +127,14 @@ func (lf *LocalFile) Size() int64 {
 
 func (lf *LocalFile) IsDirectory() bool {
 	return false
+}
+
+func (lf *LocalFile) CheckSum() (string, error) {
+	data, err := ioutil.ReadFile(lf.fullpath)
+	if err != nil {
+		return "", err
+	}
+	return strMd5(string(data)), nil
 }
 
 func (lf *LocalFile) MD5() []byte {

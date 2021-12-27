@@ -10,6 +10,7 @@ type File interface {
 	Delete() error
 	String() string
 	IsDirectory() bool
+	CheckSum() (string, error)
 }
 
 type Filesystem interface {
