@@ -2,12 +2,16 @@ package s3
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -16,6 +20,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/barnybug/s3/pkg/mys3"
 )
+
+var once = sync.Once{}
 
 const (
 	PART_SIZE = 6_000_000 // Has to be 5_000_000 minimim
@@ -37,6 +43,20 @@ type S3File struct {
 	path   string
 	md5    []byte
 	mys3   mys3.Mys3
+}
+
+func strMd5(str string) (retMd5 string) {
+	h := md5.New()
+	h.Write([]byte(str))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (s3f *S3File) CheckSum() (string, error) {
+	data, err := ioutil.ReadFile(s3f.path)
+	if err != nil {
+		return "", err
+	}
+	return strMd5(string(data)), nil
 }
 
 func (s3f *S3File) Relative() string {
@@ -69,7 +89,15 @@ func (s3f *S3File) Reader() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("file content:%s\n", output.GoString())
+
+	once.Do(func() {
+		out, err := json.MarshalIndent(output, "", "\t")
+		if err != nil {
+			return
+		}
+		fmt.Println(string(out))
+	})
+
 	return output.Body, err
 }
 
@@ -138,10 +166,15 @@ func (s3fs *S3Filesystem) Create(src File) error {
 	} else {
 		fullpath = s3fs.path
 	}
+	checkSum, err := src.CheckSum()
+	if err != nil {
+		return err
+	}
 	input := s3manager.UploadInput{
-		ACL:    aws.String(acl),
-		Bucket: aws.String(s3fs.bucket),
-		Key:    aws.String(fullpath),
+		ACL:      aws.String(acl),
+		Bucket:   aws.String(s3fs.bucket),
+		Key:      aws.String(fullpath),
+		Metadata: map[string]*string{"md5_checksum": &checkSum},
 	}
 
 	switch t := src.(type) {
@@ -171,7 +204,7 @@ func (s3fs *S3Filesystem) Create(src File) error {
 		defer reader.Close()
 		input.ContentType = aws.String(guessMimeType(src.Relative()))
 	}
-	_, err := s3fs.mys3.Upload(&input)
+	_, err = s3fs.mys3.Upload(&input)
 	return err
 }
 
@@ -187,7 +220,10 @@ func (s3fs *S3Filesystem) CreateMultiPart(src File, buffer []byte) error {
 		Bucket: aws.String(s3fs.bucket),
 		Key:    aws.String(fullpath),
 	}
-
+	checkSum, err := src.CheckSum()
+	if err != nil {
+		return err
+	}
 	switch t := src.(type) {
 	case *S3File:
 		// special case for S3File to preserve header information
@@ -218,9 +254,10 @@ func (s3fs *S3Filesystem) CreateMultiPart(src File, buffer []byte) error {
 
 	expiryDate := time.Now().AddDate(0, 0, 1)
 	createdResp, err := s3fs.mys3.CreateMultipartUpload(&s3.CreateMultipartUploadInput{
-		Bucket:  aws.String(s3fs.bucket),
-		Key:     aws.String(fullpath),
-		Expires: &expiryDate,
+		Bucket:   aws.String(s3fs.bucket),
+		Key:      aws.String(fullpath),
+		Metadata: map[string]*string{"md5_checksum": &checkSum},
+		Expires:  &expiryDate,
 	})
 	if err != nil {
 		return err
