@@ -51,8 +51,10 @@ func (s *s3Service) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, er
 
 func (s *s3Service) Upload(input *s3manager.UploadInput) (*s3manager.UploadOutput, error) {
 	uploader := s3manager.NewUploader(s.sess)
-
-	up, err := uploader.Upload(input)
+	up, err := uploader.Upload(input, func(u *s3manager.Uploader) {
+		u.PartSize = 10 * 1024 * 1024
+		u.Concurrency = 2
+	})
 	if err != nil {
 		log.Println("upload:", err)
 		return nil, err

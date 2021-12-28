@@ -11,7 +11,6 @@ import (
 	"mime"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,8 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/barnybug/s3/pkg/mys3"
 )
-
-var once = sync.Once{}
 
 const (
 	PART_SIZE = 6_000_000 // Has to be 5_000_000 minimim
@@ -86,18 +83,18 @@ func (s3f *S3File) Reader() (io.ReadCloser, error) {
 		Key:    s3f.object.Key,
 	}
 	output, err := s3f.mys3.GetObject(&input)
+
 	if err != nil {
 		return nil, err
 	}
+	if onlyShow {
 
-	once.Do(func() {
 		out, err := json.MarshalIndent(output, "", "\t")
 		if err != nil {
-			return
+			return nil, err
 		}
 		fmt.Println(string(out))
-	})
-
+	}
 	return output.Body, err
 }
 
@@ -176,7 +173,6 @@ func (s3fs *S3Filesystem) Create(src File) error {
 		Key:      aws.String(fullpath),
 		Metadata: map[string]*string{"md5_checksum": &checkSum},
 	}
-
 	switch t := src.(type) {
 	case *S3File:
 		// special case for S3File to preserve header information

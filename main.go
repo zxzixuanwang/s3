@@ -22,6 +22,7 @@ var (
 	quiet        bool
 	ignoreErrors bool
 	acl          string
+	onlyShow     bool
 )
 var version = "master" /* passed in by go build */
 
@@ -182,10 +183,10 @@ func Main(conn s3iface.S3API, args []string, output io.Writer) int {
 					return
 				}
 				directory := c.Parent().String("directory")
-				onlyShow := c.Parent().Bool("onlyShow")
+				onlyShow = c.Parent().Bool("onlyShow")
 				conn := getConnection(c)
 				mys3 := getSession(c)
-				err := getKeys(conn, c.Args(), mys3, directory, onlyShow)
+				err := getKeys(conn, c.Args(), mys3, directory)
 				checkErr(err)
 			},
 		},
